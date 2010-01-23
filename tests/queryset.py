@@ -9,7 +9,7 @@ from mongoengine import *
 class QuerySetTest(unittest.TestCase):
     
     def setUp(self):
-        connect(db='mongoenginetest')
+        connect('mongoenginetest')
 
         class Person(Document):
             name = StringField()
@@ -553,6 +553,8 @@ class QuerySetTest(unittest.TestCase):
 class QTest(unittest.TestCase):
     
     def test_or_and(self):
+        """Ensure that Q objects may be properly ANDed an ORed together.
+        """
         q1 = Q(name='test')
         q2 = Q(age__gte=18)
 

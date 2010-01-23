@@ -8,7 +8,7 @@ from mongoengine.connection import _get_db
 class FieldTest(unittest.TestCase):
 
     def setUp(self):
-        connect(db='mongoenginetest')
+        connect('mongoenginetest')
         self.db = _get_db()
 
     def test_default_values(self):
