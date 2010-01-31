@@ -2,7 +2,8 @@ import unittest
 import pymongo
 from datetime import datetime
 
-from mongoengine.queryset import QuerySet
+from mongoengine.queryset import (QuerySet, MultipleObjectsReturned, 
+                                  DoesNotExist)
 from mongoengine import *
 
 
@@ -135,6 +136,54 @@ class QuerySetTest(unittest.TestCase):
         person = self.Person.objects.with_id(person1.id)
         self.assertEqual(person.name, "User A")
 
+    def test_find_only_one(self):
+        """Ensure that a query using ``get`` returns at most one result.
+        """
+        # Try retrieving when no objects exists
+        self.assertRaises(DoesNotExist, self.Person.objects.get)
+
+        person1 = self.Person(name="User A", age=20)
+        person1.save()
+        person2 = self.Person(name="User B", age=30)
+        person2.save()
+
+        # Retrieve the first person from the database
+        self.assertRaises(MultipleObjectsReturned, self.Person.objects.get)
+
+        # Use a query to filter the people found to just person2
+        person = self.Person.objects.get(age=30)
+        self.assertEqual(person.name, "User B")
+
+        person = self.Person.objects.get(age__lt=30)
+        self.assertEqual(person.name, "User A")
+
+    def test_get_or_create(self):
+        """Ensure that ``get_or_create`` returns one result or creates a new
+        document.
+        """
+        person1 = self.Person(name="User A", age=20)
+        person1.save()
+        person2 = self.Person(name="User B", age=30)
+        person2.save()
+
+        # Retrieve the first person from the database
+        self.assertRaises(MultipleObjectsReturned, 
+                          self.Person.objects.get_or_create)
+
+        # Use a query to filter the people found to just person2
+        person = self.Person.objects.get_or_create(age=30)
+        self.assertEqual(person.name, "User B")
+
+        person = self.Person.objects.get_or_create(age__lt=30)
+        self.assertEqual(person.name, "User A")
+
+        # Try retrieving when no objects exists - new doc should be created
+        self.Person.objects.get_or_create(age=50, defaults={'name': 'User C'})
+
+        person = self.Person.objects.get(age=50)
+        self.assertEqual(person.name, "User C")
+
+
     def test_filter_chaining(self):
         """Ensure filters can be chained together.
         """
@@ -146,7 +195,7 @@ class QuerySetTest(unittest.TestCase):
             published_date = DateTimeField()
             
             @queryset_manager
-            def published(queryset):
+            def published(doc_cls, queryset):
                 return queryset(is_published=True)
                 
         blog_post_1 = BlogPost(title="Blog Post #1", 
@@ -444,7 +493,7 @@ class QuerySetTest(unittest.TestCase):
             tags = ListField(StringField())
 
             @queryset_manager
-            def music_posts(queryset):
+            def music_posts(doc_cls, queryset):
                 return queryset(tags='music')
 
         BlogPost.drop_collection()

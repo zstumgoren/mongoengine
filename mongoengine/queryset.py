@@ -11,6 +11,14 @@ __all__ = ['queryset_manager', 'Q', 'InvalidQueryError',
 REPR_OUTPUT_SIZE = 20
 
 
+class DoesNotExist(Exception):
+	pass
+
+
+class MultipleObjectsReturned(Exception):
+    pass
+
+
 class InvalidQueryError(Exception):
     pass
 
@@ -291,6 +299,46 @@ class QuerySet(object):
                 mongo_query[key].update(value)
 
         return mongo_query
+
+    def get(self, *q_objs, **query):
+        """Retrieve the the matching object raising 
+        :class:`~mongoengine.queryset.MultipleObjectsReturned` or 
+        :class:`~mongoengine.queryset.DoesNotExist` exceptions if multiple or
+        no results are found.
+        """
+        self.__call__(*q_objs, **query)
+        count = self.count()
+        if count == 1:
+            return self[0]
+        elif count > 1:
+            message = u'%d items returned, instead of 1' % count
+            raise MultipleObjectsReturned(message)
+        else:
+            raise DoesNotExist('Document not found')
+
+    def get_or_create(self, *q_objs, **query):
+        """Retreive unique object or create, if it doesn't exist. Raises
+        :class:`~mongoengine.queryset.MultipleObjectsReturned` if multiple 
+        results are found. A new document will be created if the document 
+        doesn't exists; a dictionary of default values for the new document
+        may be provided as a keyword argument called :attr:`defaults`.
+        """
+        defaults = query.get('defaults', {})
+        if query.has_key('defaults'):
+            del query['defaults']
+        
+        self.__call__(*q_objs, **query)
+        count = self.count()
+        if count == 0:
+            query.update(defaults)
+            doc = self._document(**query)
+            doc.save()
+            return doc
+        elif count == 1:
+            return self.first()
+        else:
+            message = u'%d items returned, instead of 1' % count
+            raise MultipleObjectsReturned(message)
 
     def first(self):
         """Retrieve the first object matching the query.
@@ -660,14 +708,15 @@ class QuerySetManager(object):
         # owner is the document that contains the QuerySetManager
         queryset = QuerySet(owner, self._collection)
         if self._manager_func:
-            queryset = self._manager_func(queryset)
+            queryset = self._manager_func(owner, queryset)
         return queryset
 
 def queryset_manager(func):
-    """Decorator that allows you to define custom QuerySet managers on 
+    """Decorator that allows you to define custom QuerySet managers on
     :class:`~mongoengine.Document` classes. The manager must be a function that
-    accepts a :class:`~mongoengine.queryset.QuerySet` as its only argument, and
-    returns a :class:`~mongoengine.queryset.QuerySet`, probably the same one 
-    but modified in some way.
+    accepts a :class:`~mongoengine.Document` class as its first argument, and a
+    :class:`~mongoengine.queryset.QuerySet` as its second argument. The method
+    function should return a :class:`~mongoengine.queryset.QuerySet`, probably
+    the same one that was passed in, but modified in some way.
     """
     return QuerySetManager(func)
