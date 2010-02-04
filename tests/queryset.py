@@ -21,7 +21,7 @@ class QuerySetTest(unittest.TestCase):
         """Ensure that a QuerySet is correctly initialised by QuerySetManager.
         """
         self.assertTrue(isinstance(self.Person.objects, QuerySet))
-        self.assertEqual(self.Person.objects._collection.name(), 
+        self.assertEqual(self.Person.objects._collection.name, 
                          self.Person._meta['collection'])
         self.assertTrue(isinstance(self.Person.objects._collection,
                                    pymongo.collection.Collection))
@@ -277,7 +277,25 @@ class QuerySetTest(unittest.TestCase):
         
         BlogPost.drop_collection()
 
+    def test_find_dict_item(self):
+        """Ensure that DictField items may be found.
+        """
+        class BlogPost(Document):
+            info = DictField()
+
+        BlogPost.drop_collection()
+
+        post = BlogPost(info={'title': 'test'})
+        post.save()
+
+        post_obj = BlogPost.objects(info__title='test').first()
+        self.assertEqual(post_obj.id, post.id)
+
+        BlogPost.drop_collection()
+
     def test_q(self):
+        """Ensure that Q objects may be used to query for documents.
+        """
         class BlogPost(Document):
             publish_date = DateTimeField()
             published = BooleanField()
@@ -602,7 +620,7 @@ class QuerySetTest(unittest.TestCase):
 class QTest(unittest.TestCase):
     
     def test_or_and(self):
-        """Ensure that Q objects may be properly ANDed an ORed together.
+        """Ensure that Q objects may be combined correctly.
         """
         q1 = Q(name='test')
         q2 = Q(age__gte=18)

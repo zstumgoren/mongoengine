@@ -8,7 +8,7 @@ import datetime
 
 
 __all__ = ['StringField', 'IntField', 'FloatField', 'BooleanField',
-           'DateTimeField', 'EmbeddedDocumentField', 'ListField', 
+           'DateTimeField', 'EmbeddedDocumentField', 'ListField', 'DictField',
            'ObjectIdField', 'ReferenceField', 'ValidationError']
 
 
@@ -71,6 +71,8 @@ class FloatField(BaseField):
         return float(value)
 
     def validate(self, value):
+        if isinstance(value, int):
+            value = float(value)
         assert isinstance(value, float)
 
         if self.min_value is not None and value < self.min_value:
@@ -129,6 +131,7 @@ class EmbeddedDocumentField(BaseField):
         if not isinstance(value, self.document):
             raise ValidationError('Invalid embedded document instance '
                                   'provided to an EmbeddedDocumentField')
+        self.document.validate(value)
 
     def lookup_member(self, member_name):
         return self.document._fields.get(member_name)
@@ -176,6 +179,28 @@ class ListField(BaseField):
 
     def lookup_member(self, member_name):
         return self.field.lookup_member(member_name)
+
+
+class DictField(BaseField):
+    """A dictionary field that wraps a standard Python dictionary. This is
+    similar to an embedded document, but the structure is not defined.
+
+    .. versionadded:: 0.2.3
+    """
+
+    def validate(self, value):
+        """Make sure that a list of valid fields is being used.
+        """
+        if not isinstance(value, dict):
+            raise ValidationError('Only dictionaries may be used in a '
+                                  'DictField') 
+
+        if any(('.' in k or '$' in k) for k in value):
+            raise ValidationError('Invalid dictionary key name - keys may not ' 
+                                  'contain "." or "$" characters')
+
+    def lookup_member(self, member_name):
+        return BaseField(name=member_name)
 
 
 class ReferenceField(BaseField):
