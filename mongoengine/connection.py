@@ -37,8 +37,8 @@ _connections = {}
 _dbs = {}
 
 def register_connection(alias, name, host='localhost', port=27017, 
-                        is_slave=False, slaves=None, pool_size=1, 
-                        username=None, password=None):
+                        is_slave=False, slaves=None, username=None, 
+                        password=None):
     """Add a connection. 
     
     :param alias: the name that will be used to refer to this connection 
@@ -49,8 +49,6 @@ def register_connection(alias, name, host='localhost', port=27017,
     :param is_slave: whether the connection can act as a slave
     :param slaves: a list of aliases of slave connections; each of these must
         be a registered connection that has :attr:`is_slave` set to ``True``
-    :param pool_size: the size of the connection pool - cannot be used with
-        authentication
     :param username: username to authenticate with
     :param password: password to authenticate with
     """
@@ -61,7 +59,6 @@ def register_connection(alias, name, host='localhost', port=27017,
         'port': port,
         'is_slave': is_slave,
         'slaves': slaves or [],
-        'pool_size': pool_size,
         'username': username,
         'password': password,
     }
@@ -86,7 +83,6 @@ def _get_connection(alias=DEFAULT_CONNECTION_NAME):
             conn = Connection(
                 host=conn_settings['host'], 
                 port=conn_settings['port'],
-                pool_size=conn_settings['pool_size'],
                 slave_okay=conn_settings['is_slave']
             )
             # Create a master slave connection if slaves have been specified
