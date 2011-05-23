@@ -6,7 +6,12 @@ from connection import _get_db
 import pymongo
 
 
-__all__ = ['Document', 'EmbeddedDocument', 'ValidationError', 'OperationError']
+__all__ = ['Document', 'EmbeddedDocument', 'ValidationError',
+           'OperationError', 'InvalidCollectionError']
+
+
+class InvalidCollectionError(Exception):
+    pass
 
 
 class EmbeddedDocument(BaseDocument):
@@ -55,6 +60,43 @@ class Document(BaseDocument):
     """
 
     __metaclass__ = TopLevelDocumentMetaclass
+    _accessed_collection = False
+
+    @classmethod
+    def _get_collection(self):
+        """Returns the collection for the document."""
+        db = _get_db()
+        collection_name = self._get_collection_name()
+
+        if not hasattr(self, '_collection') or self._collection is None:
+            # Create collection as a capped collection if specified
+            if self._meta['max_size'] or self._meta['max_documents']:
+                # Get max document limit and max byte size from meta
+                max_size = self._meta['max_size'] or 10000000  # 10MB default
+                max_documents = self._meta['max_documents']
+
+                if collection_name in db.collection_names():
+                    self._collection = db[collection_name]
+                    # The collection already exists, check if its capped
+                    # options match the specified capped options
+                    options = self._collection.options()
+                    if options.get('max') != max_documents or \
+                       options.get('size') != max_size:
+                        msg = ('Cannot create collection "%s" as a capped '
+                               'collection as it already exists') % self._collection
+                        raise InvalidCollectionError(msg)
+                else:
+                    # Create the collection as a capped collection
+                    opts = {'capped': True, 'size': max_size}
+                    if max_documents:
+                        opts['max'] = max_documents
+                    self._collection = db.create_collection(
+                        collection_name, **opts
+                    )
+            else:
+                self._collection = db[collection_name]
+
+        return self._collection
 
     def save(self, safe=True, force_insert=False, validate=True, write_options=None):
         """Save the :class:`~mongoengine.Document` to the database. If the
@@ -134,7 +176,7 @@ class Document(BaseDocument):
         :class:`~mongoengine.Document` type from the database.
         """
         db = _get_db()
-        db.drop_collection(cls._meta['collection'])
+        db.drop_collection(cls._get_collection_name())
 
 
 class MapReduceDocument(object):

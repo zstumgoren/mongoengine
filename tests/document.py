@@ -34,7 +34,7 @@ class DocumentTest(unittest.TestCase):
         """
         self.Person(name='Test').save()
 
-        collection = self.Person._meta['collection']
+        collection = self.Person._get_collection_name()
         self.assertTrue(collection in self.db.collection_names())
 
         self.Person.drop_collection()
@@ -136,8 +136,8 @@ class DocumentTest(unittest.TestCase):
 
         self.assertTrue('name' in Employee._fields)
         self.assertTrue('salary' in Employee._fields)
-        self.assertEqual(Employee._meta['collection'],
-                         self.Person._meta['collection'])
+        self.assertEqual(Employee._get_collection_name(),
+                         self.Person._get_collection_name())
 
         # Ensure that MRO error is not raised
         class A(Document): pass
@@ -162,7 +162,7 @@ class DocumentTest(unittest.TestCase):
         # Check that _cls etc aren't present on simple documents
         dog = Animal(name='dog')
         dog.save()
-        collection = self.db[Animal._meta['collection']]
+        collection = self.db[Animal._get_collection_name()]
         obj = collection.find_one()
         self.assertFalse('_cls' in obj)
         self.assertFalse('_types' in obj)
@@ -622,7 +622,7 @@ class DocumentTest(unittest.TestCase):
         person = self.Person(name='Test User', age=30)
         person.save()
         # Ensure that the object is in the database
-        collection = self.db[self.Person._meta['collection']]
+        collection = self.db[self.Person._get_collection_name()]
         person_obj = collection.find_one({'name': 'Test User'})
         self.assertEqual(person_obj['name'], 'Test User')
         self.assertEqual(person_obj['age'], 30)
@@ -655,7 +655,7 @@ class DocumentTest(unittest.TestCase):
                              id='497ce96f395f2f052a494fd4')
         person.save()
         # Ensure that the object is in the database with the correct _id
-        collection = self.db[self.Person._meta['collection']]
+        collection = self.db[self.Person._get_collection_name()]
         person_obj = collection.find_one({'name': 'Test User'})
         self.assertEqual(str(person_obj['_id']), '497ce96f395f2f052a494fd4')
 
@@ -667,7 +667,7 @@ class DocumentTest(unittest.TestCase):
                              pk='497ce96f395f2f052a494fd4')
         person.save()
         # Ensure that the object is in the database with the correct _id
-        collection = self.db[self.Person._meta['collection']]
+        collection = self.db[self.Person._get_collection_name()]
         person_obj = collection.find_one({'name': 'Test User'})
         self.assertEqual(str(person_obj['_id']), '497ce96f395f2f052a494fd4')
 
@@ -690,7 +690,7 @@ class DocumentTest(unittest.TestCase):
         post.comments = comments
         post.save()
 
-        collection = self.db[BlogPost._meta['collection']]
+        collection = self.db[BlogPost._get_collection_name()]
         post_obj = collection.find_one()
         self.assertEqual(post_obj['tags'], tags)
         for comment_obj, comment in zip(post_obj['comments'], comments):
@@ -715,7 +715,7 @@ class DocumentTest(unittest.TestCase):
         employee.save()
 
         # Ensure that the object is in the database
-        collection = self.db[self.Person._meta['collection']]
+        collection = self.db[self.Person._get_collection_name()]
         employee_obj = collection.find_one({'name': 'Test Employee'})
         self.assertEqual(employee_obj['name'], 'Test Employee')
         self.assertEqual(employee_obj['age'], 50)
@@ -743,7 +743,7 @@ class DocumentTest(unittest.TestCase):
         promoted_employee.details.position = 'Senior Developer'
         promoted_employee.save()
 
-        collection = self.db[self.Person._meta['collection']]
+        collection = self.db[self.Person._get_collection_name()]
         employee_obj = collection.find_one({'name': 'Test Employee'})
         self.assertEqual(employee_obj['name'], 'Test Employee')
         self.assertEqual(employee_obj['age'], 50)
@@ -831,6 +831,9 @@ class DocumentTest(unittest.TestCase):
             text = StringField()
             post = ReferenceField(BlogPost, reverse_delete_rule=CASCADE)
 
+        self.Person.drop_collection()
+        BlogPost.drop_collection()
+        Comment.drop_collection()
 
         author = self.Person(name='Test User')
         author.save()

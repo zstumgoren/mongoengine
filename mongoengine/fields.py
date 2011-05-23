@@ -12,7 +12,6 @@ import pymongo.binary
 import datetime, time
 import decimal
 import gridfs
-import warnings
 
 
 __all__ = ['StringField', 'IntField', 'FloatField', 'BooleanField',
@@ -118,8 +117,8 @@ class EmailField(StringField):
 
     EMAIL_REGEX = re.compile(
         r"(^[-!#$%&'*+/=?^_`{}|~0-9A-Z]+(\.[-!#$%&'*+/=?^_`{}|~0-9A-Z]+)*"  # dot-atom
-        r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]|\\[\001-011\013\014\016-\177])*"' # quoted-string
-        r')@(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?$', re.IGNORECASE # domain
+        r'|^"([\001-\010\013\014\016-\037!#-\[\]-\177]|\\[\001-011\013\014\016-\177])*"'  # quoted-string
+        r')@(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?$', re.IGNORECASE  # domain
     )
 
     def validate(self, value):
@@ -153,6 +152,7 @@ class IntField(BaseField):
     def prepare_query_value(self, op, value):
         return int(value)
 
+
 class FloatField(BaseField):
     """An floating point number field.
     """
@@ -177,6 +177,7 @@ class FloatField(BaseField):
 
     def prepare_query_value(self, op, value):
         return float(value)
+
 
 class DecimalField(BaseField):
     """A fixed-point decimal number field.
@@ -241,7 +242,7 @@ class DateTimeField(BaseField):
             return datetime.datetime(value.year, value.month, value.day)
 
         # Attempt to parse a datetime:
-        #value = smart_str(value)
+        # value = smart_str(value)
         # split usecs, because they are not recognized by strptime.
         if '.' in value:
             try:
@@ -252,7 +253,7 @@ class DateTimeField(BaseField):
         else:
             usecs = 0
         kwargs = {'microsecond': usecs}
-        try: # Seconds are optional, so try converting seconds first.
+        try:  # Seconds are optional, so try converting seconds first.
             return datetime.datetime(*time.strptime(value, '%Y-%m-%d %H:%M:%S')[:6],
                                      **kwargs)
 
@@ -266,6 +267,7 @@ class DateTimeField(BaseField):
                                              **kwargs)
                 except ValueError:
                     return None
+
 
 class EmbeddedDocumentField(BaseField):
     """An embedded document field. Only valid values are subclasses of
@@ -451,6 +453,7 @@ class DictField(BaseField):
     def lookup_member(self, member_name):
         return self.basecls(db_field=member_name)
 
+
 class ReferenceField(BaseField):
     """A reference to a document that will be automatically dereferenced on
     access (lazily).
@@ -505,7 +508,7 @@ class ReferenceField(BaseField):
             id_ = document
 
         id_ = id_field.to_mongo(id_)
-        collection = self.document_type._meta['collection']
+        collection = self.document_type._get_collection_name()
         return pymongo.dbref.DBRef(collection, id_)
 
     def prepare_query_value(self, op, value):
@@ -560,7 +563,7 @@ class GenericReferenceField(BaseField):
             id_ = document
 
         id_ = id_field.to_mongo(id_)
-        collection = document._meta['collection']
+        collection = document._get_collection_name()
         ref = pymongo.dbref.DBRef(collection, id_)
         return {'_cls': document.__class__.__name__, '_ref': ref}
 

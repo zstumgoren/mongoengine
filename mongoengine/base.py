@@ -264,9 +264,8 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
 
         # Subclassed documents inherit collection from superclass
         for base in bases:
-            if hasattr(base, '_meta') and 'collection' in base._meta:
-                collection = base._meta['collection']
-
+            if hasattr(base, '_meta'):
+                collection = base._get_collection_name() or None
                 # Propagate index options.
                 for key in ('index_background', 'index_drop_dups', 'index_opts'):
                     if key in base._meta:
@@ -401,6 +400,12 @@ class BaseDocument(object):
                                           % (field.__class__.__name__, value))
             elif field.required:
                 raise ValidationError('Field "%s" is required' % field.name)
+
+    @classmethod
+    def _get_collection_name(cls):
+        """Returns the collection name for this class.
+        """
+        return cls._meta['collection']
 
     @classmethod
     def _get_subclasses(cls):
