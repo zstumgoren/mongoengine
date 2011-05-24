@@ -126,6 +126,7 @@ class BaseField(object):
 
         self.validate(value)
 
+
 class ObjectIdField(BaseField):
     """An field wrapper around MongoDB's ObjectIds.
     """
@@ -253,7 +254,16 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
         # __metaclass__ is only set on the class with the __metaclass__
         # attribute (i.e. it is not set on subclasses). This differentiates
         # 'real' documents from the 'Document' class
-        if attrs.get('__metaclass__') == TopLevelDocumentMetaclass:
+        #
+        # Also assume a class is abstract if it has abstract set to True in
+        # its meta dictionary. This allows custom Document superclasses.
+        if (attrs.get('__metaclass__') == TopLevelDocumentMetaclass or
+            ('meta' in attrs and attrs['meta'].get('abstract', False))):
+            # Make sure no base class was non-abstract
+            non_abstract_bases = [b for b in bases
+                if hasattr(b,'_meta') and not b._meta.get('abstract', False)]
+            if non_abstract_bases:
+                raise ValueError("Abstract document cannot have non-abstract base")
             return super_new(cls, name, bases, attrs)
 
         collection = name.lower()
@@ -262,10 +272,18 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
         base_indexes = []
         base_meta = {}
 
+
+
         # Subclassed documents inherit collection from superclass
         for base in bases:
             if hasattr(base, '_meta'):
-                collection = base._get_collection_name() or None
+                if 'collection' in attrs.get('meta', {}):
+                    import warnings
+                    msg = "Trying to set a collection on a subclass (%s)" % name
+                    warnings.warn(msg, SyntaxWarning)
+                    del(attrs['meta']['collection'])
+                if base._get_collection_name():
+                    collection = base._get_collection_name()
                 # Propagate index options.
                 for key in ('index_background', 'index_drop_dups', 'index_opts'):
                     if key in base._meta:
@@ -275,6 +293,7 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
                 base_indexes += base._meta.get('indexes', [])
 
         meta = {
+            'abstract': False,
             'collection': collection,
             'max_documents': None,
             'max_size': None,
@@ -297,14 +316,15 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
         # DocumentMetaclass before instantiating CollectionManager object
         new_class = super_new(cls, name, bases, attrs)
 
-        # Allow dynamically-generated collection names. Pass the newly
-        # created class so the callee has access to __module__, etc.
-        if callable(meta['collection']):
-            new_class._meta['collection'] = meta['collection'](new_class)
+        collection = attrs['_meta'].get('collection', None)
+        if callable(collection):
+            new_class._meta['collection'] = collection(new_class)
 
         # Provide a default queryset unless one has been manually provided
-        if not hasattr(new_class, 'objects'):
-            new_class.objects = QuerySetManager()
+        manager = attrs.get('objects', QuerySetManager())
+        if hasattr(manager, 'queryset_class'):
+            meta['queryset_class'] = manager.queryset_class
+        new_class.objects = manager
 
         user_indexes = [QuerySet._build_index_spec(new_class, spec)
                         for spec in meta['indexes']] + base_indexes
@@ -410,7 +430,7 @@ class BaseDocument(object):
     def _get_collection_name(cls):
         """Returns the collection name for this class.
         """
-        return cls._meta['collection']
+        return cls._meta.get('collection', None)
 
     @classmethod
     def _get_subclasses(cls):

@@ -1,7 +1,9 @@
-import unittest
-from datetime import datetime
-import pymongo
 import pickle
+import pymongo
+import unittest
+import warnings
+
+from datetime import datetime
 
 from mongoengine import *
 from mongoengine.base import BaseField
@@ -28,6 +30,9 @@ class DocumentTest(unittest.TestCase):
             name = StringField()
             age = IntField()
         self.Person = Person
+
+    def tearDown(self):
+        self.Person.drop_collection()
 
     def test_drop_collection(self):
         """Ensure that the collection may be dropped from the database.
@@ -205,6 +210,37 @@ class DocumentTest(unittest.TestCase):
         self.assertFalse('_cls' in comment.to_mongo())
         self.assertFalse('_types' in comment.to_mongo())
 
+    def test_abstract_documents(self):
+        """Ensure that a document superclass can be marked as abstract
+        thereby not using it as the name for the collection."""
+
+        class Animal(Document):
+            name = StringField()
+            meta = {'abstract': True}
+
+        class Fish(Animal): pass
+        class Guppy(Fish): pass
+
+        class Mammal(Animal):
+            meta = {'abstract': True}
+        class Human(Mammal): pass
+
+        self.assertFalse('collection' in Animal._meta)
+        self.assertFalse('collection' in Mammal._meta)
+
+        self.assertEqual(Animal._get_collection_name(), None)
+        self.assertEqual(Mammal._get_collection_name(), None)
+
+        self.assertEqual(Fish._get_collection_name(), 'fish')
+        self.assertEqual(Guppy._get_collection_name(), 'fish')
+        self.assertEqual(Human._get_collection_name(), 'human')
+
+        def create_bad_abstract():
+            class EvilHuman(Human):
+                evil = BooleanField(default=True)
+                meta = {'abstract': True}
+        self.assertRaises(ValueError, create_bad_abstract)
+
     def test_collection_name(self):
         """Ensure that a collection with a specified name may be used.
         """
@@ -248,14 +284,21 @@ class DocumentTest(unittest.TestCase):
     def test_inherited_collections(self):
         """Ensure that subclassed documents don't override parents' collections.
         """
-        class Drink(Document):
-            name = StringField()
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
 
-        class AlcoholicDrink(Drink):
-            meta = {'collection': 'booze'}
+            class Drink(Document):
+                name = StringField()
 
-        class Drinker(Document):
-            drink = GenericReferenceField()
+            class AlcoholicDrink(Drink):
+                meta = {'collection': 'booze'}
+
+            class Drinker(Document):
+                drink = GenericReferenceField()
+
+            # Confirm we triggered a SyntaxWarning
+            assert issubclass(w[0].category, SyntaxWarning)
 
         Drink.drop_collection()
         AlcoholicDrink.drop_collection()
@@ -269,7 +312,6 @@ class DocumentTest(unittest.TestCase):
 
         beer = AlcoholicDrink(name='Beer')
         beer.save()
-
         real_person = Drinker(drink=beer)
         real_person.save()
 
@@ -926,9 +968,6 @@ class DocumentTest(unittest.TestCase):
         self.assertEquals(B.objects.count(), 1)
         A.drop_collection()
         B.drop_collection()
-
-    def tearDown(self):
-        self.Person.drop_collection()
 
     def test_document_hash(self):
         """Test document in list, dict, set

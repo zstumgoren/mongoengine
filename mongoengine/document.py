@@ -95,7 +95,6 @@ class Document(BaseDocument):
                     )
             else:
                 self._collection = db[collection_name]
-
         return self._collection
 
     def save(self, safe=True, force_insert=False, validate=True, write_options=None):

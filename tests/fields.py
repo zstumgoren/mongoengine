@@ -262,11 +262,13 @@ class FieldTest(unittest.TestCase):
 
         BlogPost.drop_collection()
 
-    def test_dict_validation(self):
+    def test_dict_field(self):
         """Ensure that dict types work as expected.
         """
         class BlogPost(Document):
             info = DictField()
+
+        BlogPost.drop_collection()
 
         post = BlogPost()
         post.info = 'my post'
@@ -282,7 +284,24 @@ class FieldTest(unittest.TestCase):
         self.assertRaises(ValidationError, post.validate)
 
         post.info = {'title': 'test'}
-        post.validate()
+        post.save()
+
+        post = BlogPost()
+        post.info = {'details': {'test': 'test'}}
+        post.save()
+
+        post = BlogPost()
+        post.info = {'details': {'test': 3}}
+        post.save()
+
+        self.assertEquals(BlogPost.objects.count(), 3)
+        self.assertEquals(BlogPost.objects.filter(info__title__exact='test').count(), 1)
+        self.assertEquals(BlogPost.objects.filter(info__details__test__exact='test').count(), 1)
+
+        # Confirm handles non strings or non existing keys
+        self.assertEquals(BlogPost.objects.filter(info__details__test__exact=5).count(), 0)
+        self.assertEquals(BlogPost.objects.filter(info__made_up__test__exact='test').count(), 0)
+        BlogPost.drop_collection()
 
     def test_embedded_document_validation(self):
         """Ensure that invalid embedded documents cannot be assigned to
@@ -824,6 +843,67 @@ class FieldTest(unittest.TestCase):
         d2 = D()
         self.assertEqual(d2.data, {})
         self.assertEqual(d2.data2, {})
+
+    def test_mapfield(self):
+        """Ensure that the MapField handles the declared type."""
+
+        class Simple(Document):
+            mapping = MapField(IntField())
+
+        Simple.drop_collection()
+
+        e = Simple()
+        e.mapping['someint'] = 1
+        e.save()
+
+        def create_invalid_mapping():
+            e.mapping['somestring'] = "abc"
+            e.save()
+
+        self.assertRaises(ValidationError, create_invalid_mapping)
+
+        def create_invalid_class():
+            class NoDeclaredType(Document):
+                mapping = MapField()
+
+        self.assertRaises(ValidationError, create_invalid_class)
+
+        Simple.drop_collection()
+
+    def test_complex_mapfield(self):
+        """Ensure that the MapField can handle complex declared types."""
+
+        class SettingBase(EmbeddedDocument):
+            pass
+
+        class StringSetting(SettingBase):
+            value = StringField()
+
+        class IntegerSetting(SettingBase):
+            value = IntField()
+
+        class Extensible(Document):
+            mapping = MapField(EmbeddedDocumentField(SettingBase))
+
+        Extensible.drop_collection()
+
+        e = Extensible()
+        e.mapping['somestring'] = StringSetting(value='foo')
+        e.mapping['someint'] = IntegerSetting(value=42)
+        e.save()
+
+        e2 = Extensible.objects.get(id=e.id)
+        self.assertTrue(isinstance(e2.mapping['somestring'], StringSetting))
+        self.assertTrue(isinstance(e2.mapping['someint'], IntegerSetting))
+
+        def create_invalid_mapping():
+            e.mapping['someint'] = 123
+            e.save()
+
+        self.assertRaises(ValidationError, create_invalid_mapping)
+
+        Extensible.drop_collection()
+
 
 if __name__ == '__main__':
     unittest.main()
