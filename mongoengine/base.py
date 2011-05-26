@@ -277,7 +277,7 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
         # Subclassed documents inherit collection from superclass
         for base in bases:
             if hasattr(base, '_meta'):
-                if 'collection' in attrs.get('meta', {}):
+                if 'collection' in attrs.get('meta', {}) and not base._meta.get('abstract', False):
                     import warnings
                     msg = "Trying to set a collection on a subclass (%s)" % name
                     warnings.warn(msg, SyntaxWarning)
