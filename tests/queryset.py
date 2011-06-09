@@ -422,10 +422,34 @@ class QuerySetTest(unittest.TestCase):
         person2.save()
 
         # Retrieve the first person from the database
-        person = self.Person.objects(slave_okay=True).first()
+        person = self.Person.objects.slave_okay(True).first()
         self.assertTrue(isinstance(person, self.Person))
         self.assertEqual(person.name, "User A")
         self.assertEqual(person.age, 20)
+
+    def test_cursor_args(self):
+        """Ensures the cursor args can be set as expected
+        """
+        p = self.Person.objects
+        # Check default
+        self.assertEqual(p._cursor_args,
+                {'snapshot': False, 'slave_okay': False, 'timeout': True})
+
+        p.snapshot(False).slave_okay(False).timeout(False)
+        self.assertEqual(p._cursor_args,
+                {'snapshot': False, 'slave_okay': False, 'timeout': False})
+
+        p.snapshot(True).slave_okay(False).timeout(False)
+        self.assertEqual(p._cursor_args,
+                {'snapshot': True, 'slave_okay': False, 'timeout': False})
+
+        p.snapshot(True).slave_okay(True).timeout(False)
+        self.assertEqual(p._cursor_args,
+                {'snapshot': True, 'slave_okay': True, 'timeout': False})
+
+        p.snapshot(True).slave_okay(True).timeout(True)
+        self.assertEqual(p._cursor_args,
+                {'snapshot': True, 'slave_okay': True, 'timeout': True})
 
     def test_repeated_iteration(self):
         """Ensure that QuerySet rewinds itself one iteration finishes.
@@ -1805,6 +1829,22 @@ class QuerySetTest(unittest.TestCase):
         info = [value['key'] for key, value in info.iteritems()]
         self.assertTrue([('_types', 1)] in info)
         self.assertTrue([('_types', 1), ('date', -1)] in info)
+
+    def test_dont_index_types(self):
+        """Ensure that index_types will, when disabled, prevent _types
+        being added to all indices.
+        """
+        class BlogPost(Document):
+            date = DateTimeField()
+            meta = {'index_types': False,
+                    'indexes': ['-date']}
+
+        # Indexes are lazy so use list() to perform query
+        list(BlogPost.objects)
+        info = BlogPost.objects._collection.index_information()
+        info = [value['key'] for key, value in info.iteritems()]
+        self.assertTrue([('_types', 1)] not in info)
+        self.assertTrue([('date', -1)] in info)
 
         BlogPost.drop_collection()
 

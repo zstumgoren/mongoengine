@@ -8,6 +8,7 @@ import sys
 import pymongo
 import pymongo.objectid
 from operator import itemgetter
+from functools import partial
 
 
 class NotRegistered(Exception):
@@ -61,6 +62,7 @@ class BaseField(object):
         self.primary_key = primary_key
         self.validation = validation
         self.choices = choices
+
         # Adjust the appropriate creation counter, and save our local copy.
         if self.db_field == '_id':
             self.creation_counter = BaseField.auto_creation_counter
@@ -400,7 +402,7 @@ class DocumentMetaclass(type):
                 superclasses[base._class_name] = base
                 superclasses.update(base._superclasses)
 
-            if hasattr(base, '_meta'):
+            if hasattr(base, '_meta') and not base._meta.get('abstract'):
                 # Ensure that the Document class may be subclassed -
                 # inheritance may be disabled to remove dependency on
                 # additional fields _cls and _types
@@ -417,7 +419,7 @@ class DocumentMetaclass(type):
 
         # Only simple classes - direct subclasses of Document - may set
         # allow_inheritance to False
-        if not simple_class and not meta['allow_inheritance']:
+        if not simple_class and not meta['allow_inheritance'] and not meta['abstract']:
             raise ValueError('Only direct subclasses of Document may set '
                              '"allow_inheritance" to False')
         attrs['_meta'] = meta
@@ -497,8 +499,9 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
 
         # Subclassed documents inherit collection from superclass
         for base in bases:
-            if hasattr(base, '_meta') and 'collection' in base._meta:
-                collection = base._meta['collection']
+            if hasattr(base, '_meta'):
+                if 'collection' in base._meta:
+                    collection = base._meta['collection']
 
                 # Propagate index options.
                 for key in ('index_background', 'index_drop_dups', 'index_opts'):
@@ -507,6 +510,9 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
 
                 id_field = id_field or base._meta.get('id_field')
                 base_indexes += base._meta.get('indexes', [])
+                # Propagate 'allow_inheritance'
+                if 'allow_inheritance' in base._meta:
+                    base_meta['allow_inheritance'] = base._meta['allow_inheritance']
 
         meta = {
             'abstract': False,
@@ -521,6 +527,7 @@ class TopLevelDocumentMetaclass(DocumentMetaclass):
             'index_opts': {},
             'queryset_class': QuerySet,
             'delete_rules': {},
+            'allow_inheritance': True
         }
         meta.update(base_meta)
 
@@ -610,7 +617,10 @@ class BaseDocument(object):
 
         self._data = {}
         # Assign default values to instance
-        for attr_name in self._fields.keys():
+        for attr_name, field in self._fields.items():
+            if field.choices:  # dynamically adds a way to get the display value for a field with choices
+                setattr(self, 'get_%s_display' % attr_name, partial(self._get_FIELD_display, field=field))
+
             # Use default value if present
             value = getattr(self, attr_name, None)
             setattr(self, attr_name, value)
@@ -622,6 +632,11 @@ class BaseDocument(object):
                 pass
 
         signals.post_init.send(self)
+
+    def _get_FIELD_display(self, field):
+        """Returns the display value for a choice field"""
+        value = getattr(self, field.name)
+        return dict(field.choices).get(value, value)
 
     def validate(self):
         """Ensure that all fields' values are valid and that required fields

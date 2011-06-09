@@ -187,6 +187,66 @@ class FieldTest(unittest.TestCase):
         log.time = '1pm'
         self.assertRaises(ValidationError, log.validate)
 
+    def test_datetime(self):
+        """Tests showing pymongo datetime fields handling of microseconds.
+        Microseconds are rounded to the nearest millisecond and pre UTC
+        handling is wonky.
+
+        See: http://api.mongodb.org/python/current/api/bson/son.html#dt
+        """
+        class LogEntry(Document):
+            date = DateTimeField()
+
+        LogEntry.drop_collection()
+
+        # Post UTC - microseconds are rounded (down) nearest millisecond and dropped
+        d1 = datetime.datetime(1970, 01, 01, 00, 00, 01, 999)
+        d2 = datetime.datetime(1970, 01, 01, 00, 00, 01)
+        log = LogEntry()
+        log.date = d1
+        log.save()
+        log.reload()
+        self.assertNotEquals(log.date, d1)
+        self.assertEquals(log.date, d2)
+
+        # Post UTC - microseconds are rounded (down) nearest millisecond
+        d1 = datetime.datetime(1970, 01, 01, 00, 00, 01, 9999)
+        d2 = datetime.datetime(1970, 01, 01, 00, 00, 01, 9000)
+        log.date = d1
+        log.save()
+        log.reload()
+        self.assertNotEquals(log.date, d1)
+        self.assertEquals(log.date, d2)
+
+        # Pre UTC dates microseconds below 1000 are dropped
+        d1 = datetime.datetime(1969, 12, 31, 23, 59, 59, 999)
+        d2 = datetime.datetime(1969, 12, 31, 23, 59, 59)
+        log.date = d1
+        log.save()
+        log.reload()
+        self.assertNotEquals(log.date, d1)
+        self.assertEquals(log.date, d2)
+
+        # Pre UTC microseconds above 1000 is wonky.
+        # log.date has an invalid microsecond value so I can't construct
+        # a date to compare.
+        #
+        # However, the timedelta is predicable with pre UTC timestamps
+        # It always adds 16 seconds and [777216-776217] microseconds
+        for i in xrange(1001, 3113, 33):
+            d1 = datetime.datetime(1969, 12, 31, 23, 59, 59, i)
+            log.date = d1
+            log.save()
+            log.reload()
+            self.assertNotEquals(log.date, d1)
+
+            delta = log.date - d1
+            self.assertEquals(delta.seconds, 16)
+            microseconds = 777216 - (i % 1000)
+            self.assertEquals(delta.microseconds, microseconds)
+
+        LogEntry.drop_collection()
+
     def test_list_validation(self):
         """Ensure that a list field only accepts lists with valid elements.
         """
@@ -936,6 +996,35 @@ class FieldTest(unittest.TestCase):
         shirt.validate()
 
         shirt.size = "XS"
+        self.assertRaises(ValidationError, shirt.validate)
+
+        Shirt.drop_collection()
+
+    def test_choices_get_field_display(self):
+        """Test dynamic helper for returning the display value of a choices field.
+        """
+        class Shirt(Document):
+            size = StringField(max_length=3, choices=(('S', 'Small'), ('M', 'Medium'), ('L', 'Large'),
+                                                      ('XL', 'Extra Large'), ('XXL', 'Extra Extra Large')))
+            style = StringField(max_length=3, choices=(('S', 'Small'), ('B', 'Baggy'), ('W', 'wide')), default='S')
+
+        Shirt.drop_collection()
+
+        shirt = Shirt()
+
+        self.assertEqual(shirt.get_size_display(), None)
+        self.assertEqual(shirt.get_style_display(), 'Small')
+
+        shirt.size = "XXL"
+        shirt.style = "B"
+        self.assertEqual(shirt.get_size_display(), 'Extra Extra Large')
+        self.assertEqual(shirt.get_style_display(), 'Baggy')
+
+        # Set as Z - an invalid choice
+        shirt.size = "Z"
+        shirt.style = "Z"
+        self.assertEqual(shirt.get_size_display(), 'Z')
+        self.assertEqual(shirt.get_style_display(), 'Z')
         self.assertRaises(ValidationError, shirt.validate)
 
         Shirt.drop_collection()
