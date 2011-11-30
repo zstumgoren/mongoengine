@@ -5,7 +5,10 @@ Changelog
 Changes in dev
 ==============
 
-- Fixed Handle None values for non-required fields.
+- Added support for handling null values in the database
+- Fixed Handle None values updates for non-required fields.
+- Removed Document._get_subclasses() - no longer required
+- Fixed bug requiring subclasses when not actually needed
 - Fixed deletion of dynamic data
 - Added support for the $elementMatch operator
 - Added reverse option to SortedListFields
