@@ -46,6 +46,43 @@ class FieldTest(unittest.TestCase):
         person = Person(age=30)
         self.assertRaises(ValidationError, person.validate)
 
+    def test_not_required_handles_none(self):
+        """Ensure that every fields should accept None if required is False.
+        """
+
+        class HandleNoneFields(Document):
+            str_fld = StringField()
+            int_fld = IntField()
+            flt_fld = FloatField()
+            comp_dt_fld = ComplexDateTimeField()
+
+        HandleNoneFields.drop_collection()
+
+        doc = HandleNoneFields()
+        doc.str_fld = u'spam ham egg'
+        doc.int_fld = 42
+        doc.flt_fld = 4.2
+        doc.com_dt_fld = datetime.datetime.utcnow()
+        doc.save()
+
+        res = HandleNoneFields.objects(id=doc.id).update(
+            set__str_fld=None,
+            set__int_fld=None,
+            set__flt_fld=None,
+            set__comp_dt_fld=None,
+        )
+        self.assertEqual(res, 1)
+
+        # Retrive data from db and verify it.
+        ret = HandleNoneFields.objects.all()[0]
+
+        self.assertEqual(ret.str_fld, None)
+        self.assertEqual(ret.int_fld, None)
+        self.assertEqual(ret.flt_fld, None)
+
+        # Return current time if retrived value is None.
+        self.assertTrue(isinstance(ret.comp_dt_fld, datetime.datetime))
+
     def test_object_id_validation(self):
         """Ensure that invalid values cannot be assigned to string fields.
         """

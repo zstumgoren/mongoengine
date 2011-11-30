@@ -5,6 +5,7 @@ Changelog
 Changes in dev
 ==============
 
+- Fixed Handle None values for non-required fields.
 - Fixed deletion of dynamic data
 - Added support for the $elementMatch operator
 - Added reverse option to SortedListFields
