@@ -1264,4 +1264,4 @@ if sys.version_info < (2, 5):
         return types.ClassType(name, parents, {})
 else:
     def subclass_exception(name, parents, module):
-        re
+        return type(name, parents, {'__module__': module})
