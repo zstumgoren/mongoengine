@@ -19,7 +19,7 @@ attributes that the standard Django :class:`User` model does - so the two are
 moderately compatible. Using this backend will allow you to store users in
 MongoDB but still use many of the Django authentication infrastucture (such as
 the :func:`login_required` decorator and the :func:`authenticate` function). To
-enable the MongoEngine auth backend, add the following to you **settings.py**
+enable the MongoEngine auth backend, add the following to your **settings.py**
 file::
 
     AUTHENTICATION_BACKENDS = (
@@ -88,3 +88,9 @@ backend.::
     [<FileDocument: FileDocument object>]
 
 .. versionadded:: 0.4
+
+Testing
+=======
+Django test hooks are available via :class::`mongoengine.django.tests.MongoTestCase` 
+and `mongoengine.django.tests.MongoStandaloneTestCase` classes.
+
