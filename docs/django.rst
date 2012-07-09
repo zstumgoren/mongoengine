@@ -19,7 +19,7 @@ attributes that the standard Django :class:`User` model does - so the two are
 moderately compatible. Using this backend will allow you to store users in
 MongoDB but still use many of the Django authentication infrastucture (such as
 the :func:`login_required` decorator and the :func:`authenticate` function). To
-enable the MongoEngine auth backend, add the following to you **settings.py**
+enable the MongoEngine auth backend, add the following to your **settings.py**
 file::
 
     AUTHENTICATION_BACKENDS = (
@@ -79,7 +79,7 @@ appended to the filename until the generated filename doesn't exist. The
     >>> fs.listdir()
     ([], [u'hello.txt'])
 
-All files will be saved and retrieved in GridFS via the :class::`FileDocument`
+All files will be saved and retrieved in GridFS via the :class:`FileDocument`
 document, allowing easy access to the files without the GridFSStorage
 backend.::
 
@@ -88,3 +88,45 @@ backend.::
     [<FileDocument: FileDocument object>]
 
 .. versionadded:: 0.4
+
+Testing
+=======
+
+MongoEngine provides a :class:`MongoTestCase` class that works similarly to the standard 
+Django `TestCase <https://docs.djangoproject.com/en/dev/topics/testing/#django.test.TestCase>`_. 
+To use the class, first update your Django project's **settings.py** to specify a default
+Mongo database and the custom :class:`MongoTestRunner`::
+
+        MONGO_DATABASE_NAME = 'my-mongo-db'
+        TEST_RUNNER = 'mongoengine.django.tests.MongoTestRunner'
+
+*MongoTestRunner* extends the standard `Django test runner <https://docs.djangoproject.com/en/dev/topics/testing/#defining-a-test-runner>`_ 
+by creating a temporary Mongo db during the test run. The above configuration would generate 
+a temporary database called *test_my-mongo-db*. This database is dropped at the end of the test run.
+
+In addition, if a relational database is configured in **settings**.py, *MongoTestRunner* invokes the Django test runner's 
+standard database `setup <https://docs.djangoproject.com/en/dev/topics/testing/#django.test.simple.DjangoTestSuiteRunner.setup_databases>`_
+and `teardown <https://docs.djangoproject.com/en/dev/topics/testing/#django.test.simple.DjangoTestSuiteRunner.teardown_databases>`_ methods.
+This way, *MongoTestRunner* is able to run both standard Django TestCases and MongoTestCases.
+
+To create a *MongoTestCase*, simply import and subclass it in a standard test file::
+
+    ~ myapp.tests.py ~ 
+    from mongoengine.django.tests import MongoTestCase
+    from myapp.documents import Person
+
+        class PersonTest(MongoTestCase):
+            
+            def setUp(self):
+                person = Person(name='Guido',title='BDFL')
+                person.save()
+                 
+            def test_person_lookup(self):
+                self.assertEqual(Person.objects.get(title='BDFL').name, 'Guido')
+
+.. note::
+
+    By default, *MongoTestCase* clears all data in collections at the end of each test method.
+
+For more details on testing, refer to the documention for `unittest <http://docs.python.org/library/unittest.html>`_  and 
+`Django testing <https://docs.djangoproject.com/en/dev/topics/testing/>`_.
