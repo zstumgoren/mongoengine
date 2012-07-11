@@ -38,8 +38,7 @@ class MongoTestRunner(DjangoTestSuiteRunner):
         MONGO_DATABASE_NAME = 'my-mongo-db'
         TEST_RUNNER = 'mongoengine.django.tests.MongoTestRunner'
 
-    This will result in creating a temporary 'test_my-mongo-db' database, 
-    which will be torn down at the end of the test run.
+    This create a temporary 'test_my-mongo-db' database for each test run.
 
     """
 
