@@ -1,6 +1,6 @@
 #coding: utf-8
 from django.conf import settings
-from django.test import TestCase
+from django.test import TransactionTestCase
 from django.test.simple import DjangoTestSuiteRunner
 
 from mongoengine import connect
@@ -50,7 +50,7 @@ class MongoTestRunner(DjangoTestSuiteRunner):
         conn.drop_database(db_name)
         print 'Dropping test Mongo database: ' + db_name 
 
-class MongoTestCase(TestCase):
+class MongoTestCase(TransactionTestCase):
     """TestCase class that clears the test Mongo db collections between tests methods.
 
     In order to use this class, you must first configure the MongoTestRunner in settings.py
