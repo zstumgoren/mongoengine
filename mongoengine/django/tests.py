@@ -77,6 +77,9 @@ class MongoTestCase(TestCase):
         self.db = connect(DEFAULT_CONNECTION_NAME)[self.test_db]
         super(MongoTestCase, self).__init__(methodName)
 
+    def _fixture_setup(self):
+        pass
+
     def _post_teardown(self):
         super(MongoTestCase, self)._post_teardown()
         for collection in self.db.collection_names():
